@@ -1,0 +1,381 @@
+import sys
+import os
+import getopt
+import shutil
+import plistlib
+
+# const configuration
+WORKSPACE_NAME = 'UXLive.xcworkspace'
+SCHEME_NAME = 'UXLive'
+HTTP_CONFIG_PATH = '/UXLive/ULCore/ULHttpConfigureManager.h'
+PLIST_PATH = '/UXLive/ULMain/Info.plist'
+PCH_PATH = '/UXLive/ULMain/ULPrefix.pch'
+ARCHIVE_NAME = 'UXLive.xcarchive'
+FIR_TOKEN = ''
+PROVISIONING_PROFILE_NAME = 'uxinLive_dis'
+
+# custom configuration
+CONFIGURATION = 'Release'
+ENVIRONMENTAL = True
+UPDATE_MESSAGE = ''
+BUNDLE_IDENTIFIER = ''
+SIGN_IDENTITY = ''
+
+
+# helper
+def helper():
+    print '-c' + '  ' + 'build configuration: r is Release, d is Debug, default is Release'
+    print '-e' + '  ' + 'environment configuration: t is online, f is test, default is online'
+    print '-u' + '  ' + 'update message'
+    print '-b' + '  ' + 'bundle identifier: default is com.uxin.live'
+    print '-s' + '  ' + 'code sign identifier: default is iPhone Distribution: Shenzhen Uxin Network Technology Co., Ltd.'
+    print '-h' + '  ' + 'help information'
+
+
+# get custom configuration
+def get_parameter():
+    global CONFIGURATION
+    global ENVIRONMENTAL
+    global UPDATE_MESSAGE
+    global BUNDLE_IDENTIFIER
+    global SIGN_IDENTITY
+    opts, args = getopt.getopt(sys.argv[1:], "hc:e:u:b:s:")
+    for op, value in opts:
+        if op == '-c':
+            if value == 'r':
+                CONFIGURATION = 'Release'
+            elif value == 'd':
+                CONFIGURATION = 'Debug'
+        elif op == '-e':
+            if value == 't':
+                ENVIRONMENTAL = True
+            elif value == 'f':
+                ENVIRONMENTAL = False
+        elif op == '-u':
+            UPDATE_MESSAGE = value
+        elif op == '-b':
+            BUNDLE_IDENTIFIER = value
+        elif op == '-s':
+            SIGN_IDENTITY = value
+        elif op == '-h':
+            helper()
+            sys.exit()
+
+
+# show configuration
+def show_configuration():
+    print 'workspace name -------------------- ' + WORKSPACE_NAME
+    print 'scheme name ----------------------- ' + SCHEME_NAME
+    print 'http config path ------------------ ' + HTTP_CONFIG_PATH
+    print 'plist path ------------------------ ' + PLIST_PATH
+    print 'pch path -------------------------- ' + PCH_PATH
+    print 'archive name ---------------------- ' + ARCHIVE_NAME
+    print 'provisioning profile name --------- ' + PROVISIONING_PROFILE_NAME
+    print 'configuration --------------------- ' + CONFIGURATION
+    print 'environmental --------------------- ' + 'online' if ENVIRONMENTAL else 'test'
+    print 'update message -------------------- ' + UPDATE_MESSAGE
+    print 'bundle identifier ----------------- ' + BUNDLE_IDENTIFIER
+    print 'sign identifier ------------------- ' + SIGN_IDENTITY
+
+
+# get current build file dir
+def cur_file_dir():
+    path = sys.path[0]
+    if os.path.isdir(path):
+        return path
+    elif os.path.isfile(path):
+        return os.path.dirname(path)
+
+
+# get build dir
+def build_dir():
+    path = cur_file_dir() + '/build'
+    if os.path.exists(path):
+        return path
+    else:
+        os.makedirs(path)
+        return path
+
+
+# config http data
+def config_http_data():
+    http_config_path = cur_file_dir() + HTTP_CONFIG_PATH
+
+    file = open(http_config_path, 'r+')
+    file_lines = file.readlines()
+
+    for i in range(0, len(file_lines)):
+        if file_lines[i].find("HTTP_SERVER_ENVIRONMENTAL") > 0:
+            if ENVIRONMENTAL:
+                file_lines[i] = file_lines[i].replace("0", "1")
+            else:
+                file_lines[i] = file_lines[i].replace("1", "0")
+            break
+
+    file = open(http_config_path, 'w+')
+    file.writelines(file_lines)
+    print 'finish write http config'
+
+
+# config plist data
+def config_plist_data():
+    plist_path = cur_file_dir() + PLIST_PATH
+
+    plist = plistlib.readPlist(plist_path)
+
+    # build version
+    version = plist['CFBundleVersion']
+    plist['CFBundleVersion'] = str(int(version) + 1)
+
+    try:
+        plistlib.writePlist(plist, plist_path)
+    finally:
+        print 'finish write plist'
+
+
+# revert build version
+def revert_build_version():
+    plist_path = cur_file_dir() + PLIST_PATH
+
+    plist = plistlib.readPlist(plist_path)
+
+    # build version
+    version = plist['CFBundleVersion']
+    plist['CFBundleVersion'] = str(int(version) - 1)
+
+    try:
+        plistlib.writePlist(plist, plist_path)
+    finally:
+        print 'finish revert build version'
+
+
+# config pch data
+def config_pch_data():
+    pch_path = cur_file_dir() + PCH_PATH
+
+    file = open(pch_path, 'r+')
+    file_lines = file.readlines()
+
+    for i in range(0, len(file_lines)):
+        if file_lines[i].find("kSupportBugtags") > 0:
+            file_lines[i] = file_lines[i].replace("0", "1")
+            break
+
+    file = open(pch_path, "w+")
+    file.writelines(file_lines)
+    print 'finish write pch'
+
+
+# config proj data
+def config_proj_files():
+    # config http data
+    config_http_data()
+
+    # config plist data
+    config_plist_data()
+
+    # config pch data
+    config_pch_data()
+
+
+# get fir token
+def fir_token():
+    return FIR_TOKEN
+
+
+# get workspace dir
+def workspace_dir():
+    path = cur_file_dir() + '/' + WORKSPACE_NAME
+    return path
+
+
+# get archive dir
+def archive_dir():
+    path = build_dir() + '/' + ARCHIVE_NAME
+    return path
+
+
+# get ipa dir
+def ipa_dir():
+    ipa_name = 'hrs'
+
+    if ENVIRONMENTAL:
+        ipa_name = app_version() + '_' + build_version() + '_online.ipa'
+    else:
+        ipa_name = app_version() + '_' + build_version() + '_test.ipa'
+
+    path = build_dir() + '/' + ipa_name
+    return path
+
+
+# log path
+def log_path(name):
+    path = build_dir() + '/log'
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path + '/' + name + '.log'
+
+
+# app version
+def app_version():
+    plist_path = cur_file_dir() + PLIST_PATH
+
+    plist = plistlib.readPlist(plist_path)
+    return plist['CFBundleShortVersionString']
+
+# build version
+def build_version():
+    plist_path = cur_file_dir() + PLIST_PATH
+
+    plist = plistlib.readPlist(plist_path)
+    return plist['CFBundleVersion']
+
+
+# app version & build version
+def version():
+    return 'app version: ' + app_version() + ' build version: ' + build_version()
+
+
+# build project
+def build_app():
+
+    # build by fir, issue because archive
+
+    # build_cmd = 'fir build_ipa ' + workspace_dir() + ' -w -S ' + SCHEME_NAME
+    # configure_cmd = ' -o ' + build_dir() + ' -C ' + CONFIGURATION
+    # publish_cmd = ' -p -Q -T ' + fir_token()
+    # union_cmd = build_cmd + configure_cmd + publish_cmd
+    # print('union_cmd = ' + union_cmd + '\n')
+
+    # ret = os.system(union_cmd)
+    # if ret == 0:
+    #     print('build sucess')
+    # else:
+    #     print('build failed')
+
+    # build by xcodebuild
+
+    # clean proj
+    print '\n----------cleaning----------'
+    clean_cmd = 'xcodebuild clean -workspace ' + workspace_dir() + ' -scheme ' + SCHEME_NAME \
+        + ' -configuration ' + CONFIGURATION + ' > ' + log_path('clear')
+    print('clean_cmd = ' + clean_cmd)
+    ret = os.system(clean_cmd)
+    if ret == 0:
+        print('clean sucess')
+    else:
+        revert_build_version()
+        print('clean failed')
+        return
+
+    # build archive
+    print '\n----------archiving----------'
+    build_cmd = 'xcodebuild -workspace ' + workspace_dir() + ' -scheme ' + SCHEME_NAME \
+        + ' -archivePath ' + archive_dir() + ' archive -configuration ' + CONFIGURATION \
+        + ' PRODUCT_BUNDLE_IDENTIFIER=' + BUNDLE_IDENTIFIER + ' CODE_SIGN_IDENTITY=' + '"' + SIGN_IDENTITY + '"' \
+        + ' > ' + log_path('archive')
+    print 'build_cmd = ' + build_cmd
+    ret = os.system(build_cmd)
+    if ret == 0:
+        print('build sucess')
+    else:
+        revert_build_version()
+        print('build failed')
+        return
+
+    # export ipa
+    print '\n----------exporting----------'
+    export_cmd = 'xcodebuild -exportArchive -exportFormat IPA -archivePath ' + archive_dir() \
+        + ' -exportPath ' + ipa_dir() + ' -exportProvisioningProfile ' + PROVISIONING_PROFILE_NAME \
+        + ' > ' + log_path('export')
+    print 'export_cmd = ' + export_cmd
+    ret = os.system(export_cmd)
+    if ret == 0:
+        print('export ipa sucess')
+    else:
+        revert_build_version()
+        print('export ipa failed')
+        return
+
+    # publish to fir
+    print '\n----------publishing----------'
+    publish_cmd = '/usr/local/bin/fir publish ' + ipa_dir() + ' -Q -T ' + fir_token() \
+        + ' -c ' + '"' + UPDATE_MESSAGE + '"' + ' > ' + log_path('publish')
+    print 'publish_cmd = ' + publish_cmd
+    ret = os.system(publish_cmd)
+    if ret == 0:
+        print 'ipa path is ' + ipa_dir()
+        print('publish ipa sucess')
+    else:
+        revert_build_version()
+        print('publish ipa failed')
+        return
+
+    # add update
+    print '\n----------adding----------'
+    add_cmd = '/usr/local/bin/git' + ' add -A'
+    print 'add_cmd = ' + add_cmd
+    ret = os.system(add_cmd)
+    if ret == 0:
+        print 'add success'
+    else:
+        print 'add failed'
+        return
+
+    # commit update
+    print '\n----------committing----------'
+    commit_cmd = '/usr/local/bin/git' + ' commit -m "build new version ' + version() + '"' + ' > ' + log_path('commit')
+    print 'commit_cmd = ' + commit_cmd
+    ret = os.system(commit_cmd)
+    if ret == 0:
+        print 'commit success'
+        os.system('/bin/rm ', log_path('commit'));
+    else:
+        print 'commit failed'
+        return
+
+    # push update
+    print '\n----------pushing----------'
+    push_cmd = '/usr/local/bin/git' + ' push' + ' > ' + log_path('push')
+    print 'push_cmd = ' + push_cmd
+    ret = os.system(push_cmd)
+    if ret == 0:
+        print 'push success'
+        os.system('/bin/rm ', log_path('push'));
+    else:
+        print 'push failed'
+        return
+
+
+# clean dir
+def clean_dir(dir):
+    file = ''
+    filelist = os.listdir(dir)
+    for f in filelist:
+        file = os.path.join(dir, f)
+        if os.path.isfile(file):
+            os.remove(file)
+        elif os.path.isdir(file):
+            shutil.rmtree(file, True)
+
+
+def main():
+    # get custom configuration
+    get_parameter()
+
+    # show configuration
+    show_configuration()
+
+    # clean build dir
+    path = build_dir()
+    clean_dir(path)
+
+    # config proj data
+    config_proj_files()
+
+    # build app
+    build_app()
+
+
+if __name__ == '__main__':
+    main()
