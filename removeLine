@@ -1,0 +1,51 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+import os
+
+print ("--------------")
+
+# 指明被遍历的文件夹
+# rootdir = '/Users/leo/Documents/UXin/UXLive/ux_live/UXLive/UXLive/ULCore'
+# rootdir = '/Users/leo/Documents/UXin/UXLive/ux_live/UXLive/UXLive/ULBusiness'
+rootdir = '/Users/leo/Documents/UXin/UXLive/ux_live/UXLive/UXLive/ULUI'
+
+# key = '@author'
+# flag = 0
+
+key = '@since'
+flag = 1
+
+# 三个参数：分别返回1.父目录 2.所有文件夹名字（不含路径） 3.所有文件名字
+for parent, dirnames, filenames in os.walk(rootdir):
+    # 输出文件夹信息
+    for dirname in dirnames:
+        print "parent is:" + parent
+        print "dirname is" + dirname
+
+    # 输出文件信息
+    for filename in filenames:
+        # print "parent is:" + parent
+        # print "filename is:" + filename
+        # 输出文件路径信息
+        file_path = os.path.join(parent, filename)
+        print "the full name of the file is:" + file_path
+        file = open(file_path, 'r+')
+        file_lines = file.readlines()
+
+        to_remove_lines = []
+        for i in range(0, len(file_lines)):
+            if file_lines[i].find(key) > 0:
+                print i
+                to_remove_lines.append(i)
+
+        m = 0
+        for i in range(0, len(to_remove_lines)):
+            file_lines.pop(to_remove_lines[i] - m)
+            file_lines.pop(to_remove_lines[i] - m - flag)
+            m += 2
+
+        file = open(file_path, "w+")
+        file.writelines(file_lines)
+
+print ("--------------")
